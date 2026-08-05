@@ -1,10 +1,21 @@
+from unittest.mock import patch
+
 import pytest
 import torch
 from torch import nn
 from torch.optim import SGD
 from torch.utils.data import DataLoader, TensorDataset
 
-from incremental_blood_cell.lwf import distillation_loss, train_lwf
+from incremental_blood_cell.lwf import distillation_loss, run_lwf, train_lwf
+
+
+class TinyClassifier(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.fc = nn.Linear(2, 2)
+
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        return self.fc(inputs)
 
 
 def test_distillation_uses_only_old_class_logits() -> None:
@@ -124,3 +135,60 @@ def test_lwf_updates_student_but_not_teacher() -> None:
     assert student_changed
     assert not teacher.training
     assert all(parameter.grad is None for parameter in teacher.parameters())
+
+
+def test_runs_sequential_lwf_with_old_teacher() -> None:
+    model = TinyClassifier()
+
+    first_task = TensorDataset(
+        torch.tensor(
+            [
+                [-2.0, 0.0],
+                [-1.0, 0.0],
+                [1.0, 0.0],
+                [2.0, 0.0],
+            ]
+        ),
+        torch.tensor([0, 0, 1, 1]),
+    )
+
+    second_task = TensorDataset(
+        torch.tensor(
+            [
+                [0.0, 1.0],
+                [0.0, 2.0],
+            ]
+        ),
+        torch.tensor([2, 2]),
+    )
+
+    with patch(
+        "incremental_blood_cell.lwf.train_lwf",
+        wraps=train_lwf,
+    ) as mocked_train_lwf:
+        accuracy_matrix = run_lwf(
+            model=model,
+            class_splits=((0, 1), (2,)),
+            train_datasets=(first_task, second_task),
+            test_datasets=(first_task, second_task),
+            device=torch.device("cpu"),
+            epochs=1,
+            batch_size=2,
+            learning_rate=0.1,
+            distillation_weight=1.0,
+            temperature=2.0,
+            show_progress=False,
+        )
+
+    teacher = mocked_train_lwf.call_args.kwargs["teacher"]
+
+    assert mocked_train_lwf.call_count == 1
+    assert teacher is not model
+    assert teacher.fc.out_features == 2
+    assert model.fc.out_features == 3
+
+    assert len(accuracy_matrix) == 2
+    assert len(accuracy_matrix[0]) == 1
+    assert len(accuracy_matrix[1]) == 2
+
+    assert all(0.0 <= accuracy <= 1.0 for row in accuracy_matrix for accuracy in row)
