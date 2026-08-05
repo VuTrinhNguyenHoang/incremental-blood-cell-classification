@@ -8,7 +8,11 @@ version = "0.1.0"
 description = "Class-incremental blood cell classification with replay memory."
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "medmnist",
+    "torch",
+    "torchvision"
+]
 
 [project.optional-dependencies]
 dev = [

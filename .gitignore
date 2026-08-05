@@ -5,3 +5,6 @@
 .pytest_cache/
 __pycache__/
 .ruff_cache/
+
+# Dataset
+data/
