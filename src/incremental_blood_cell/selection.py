@@ -1,9 +1,55 @@
 from typing import Literal
 
 import torch
+from torch import nn
 from torch.nn import functional as F
+from torch.utils.data import DataLoader, Dataset
 
 SelectionStrategy = Literal["prototype", "boundary", "hybrid"]
+
+
+def collect_features_and_logits(
+    model: nn.Module,
+    dataset: Dataset,
+    batch_size: int,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    device = next(model.parameters()).device
+    loader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=False,
+    )
+
+    feature_batches = []
+    logit_batches = []
+    label_batches = []
+
+    def capture_features(
+        _module: nn.Module,
+        inputs: tuple[torch.Tensor, ...],
+    ) -> None:
+        feature_batches.append(inputs[0].detach().cpu())
+
+    handle = model.fc.register_forward_pre_hook(capture_features)
+    was_training = model.training
+    model.eval()
+
+    try:
+        with torch.inference_mode():
+            for images, labels in loader:
+                logits = model(images.to(device))
+
+                logit_batches.append(logits.cpu())
+                label_batches.append(labels.cpu())
+    finally:
+        handle.remove()
+        model.train(was_training)
+
+    return (
+        torch.cat(feature_batches),
+        torch.cat(logit_batches),
+        torch.cat(label_batches),
+    )
 
 
 def select_exemplars(
