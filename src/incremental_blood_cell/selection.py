@@ -8,6 +8,17 @@ from torch.utils.data import DataLoader, Dataset
 SelectionStrategy = Literal["prototype", "boundary", "hybrid"]
 
 
+def _collate_samples(
+    samples: list[tuple[torch.Tensor, int | torch.Tensor]],
+) -> tuple[torch.Tensor, torch.Tensor]:
+    images, labels = zip(*samples)
+
+    return (
+        torch.stack(images),
+        torch.tensor([int(label) for label in labels]),
+    )
+
+
 def collect_features_and_logits(
     model: nn.Module,
     dataset: Dataset,
@@ -18,6 +29,7 @@ def collect_features_and_logits(
         dataset,
         batch_size=batch_size,
         shuffle=False,
+        collate_fn=_collate_samples,
     )
 
     feature_batches = []

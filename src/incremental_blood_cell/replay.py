@@ -3,6 +3,7 @@ from collections import Counter
 from collections.abc import Sequence
 
 import torch
+from torch import nn
 from torch.optim import AdamW
 from torch.utils.data import ConcatDataset, DataLoader, Dataset
 from torchvision.models.resnet import ResNet
@@ -14,7 +15,23 @@ from incremental_blood_cell.metrics import (
     final_average_accuracy,
 )
 from incremental_blood_cell.model import expand_classifier
+from incremental_blood_cell.selection import (
+    SelectionStrategy,
+    collect_features_and_logits,
+    select_exemplars,
+)
 from incremental_blood_cell.training import train
+
+
+def _balanced_quotas(
+    capacity: int,
+    classes: Sequence[int],
+) -> dict[int, int]:
+    base, remainder = divmod(capacity, len(classes))
+
+    return {
+        class_id: base + (index < remainder) for index, class_id in enumerate(classes)
+    }
 
 
 class ReplayBuffer(Dataset):
@@ -33,11 +50,7 @@ class ReplayBuffer(Dataset):
         return dict(Counter(label for _, label in self._samples))
 
     def update(self, dataset: Dataset, seen_classes: Sequence[int]) -> None:
-        base, remainder = divmod(self.capacity, len(seen_classes))
-        quotas = {
-            class_id: base + (index < remainder)
-            for index, class_id in enumerate(seen_classes)
-        }
+        quotas = _balanced_quotas(self.capacity, seen_classes)
 
         old_samples: dict[int, list[tuple[torch.Tensor, int]]] = {}
         for sample in self._samples:
@@ -83,6 +96,73 @@ class ReplayBuffer(Dataset):
                 samples[position] = (image.detach().cpu().clone(), label)
 
         return selected
+
+
+class SelectionReplayBuffer(Dataset):
+    def __init__(
+        self,
+        capacity: int,
+        strategy: SelectionStrategy = "hybrid",
+    ) -> None:
+        self.capacity = capacity
+        self.strategy = strategy
+        self._samples: list[tuple[torch.Tensor, int]] = []
+
+    def __len__(self) -> int:
+        return len(self._samples)
+
+    def __getitem__(self, index: int) -> tuple[torch.Tensor, int]:
+        return self._samples[index]
+
+    def class_counts(self) -> dict[int, int]:
+        return dict(Counter(label for _, label in self._samples))
+
+    def update(
+        self,
+        model: nn.Module,
+        dataset: Dataset,
+        seen_classes: Sequence[int],
+        batch_size: int,
+    ) -> None:
+        if self.capacity == 0:
+            self._samples = []
+            return
+
+        candidates = dataset
+        if len(self) > 0:
+            candidates = ConcatDataset((dataset, self))
+
+        quotas = _balanced_quotas(
+            capacity=self.capacity,
+            classes=seen_classes,
+        )
+
+        features, logits, labels = collect_features_and_logits(
+            model=model,
+            dataset=candidates,
+            batch_size=batch_size,
+        )
+
+        selected_indices = select_exemplars(
+            features=features,
+            logits=logits,
+            labels=labels,
+            quotas=quotas,
+            strategy=self.strategy,
+        )
+
+        selected_samples = []
+
+        for index in selected_indices:
+            image, label = candidates[index]
+            selected_samples.append(
+                (
+                    image.detach().cpu().clone(),
+                    int(label),
+                )
+            )
+
+        self._samples = selected_samples
 
 
 def run_random_replay(
