@@ -1,6 +1,8 @@
+from collections.abc import Sequence
 from pathlib import Path
 
 from medmnist import BloodMNIST
+from torch.utils.data import Subset
 from torchvision.transforms import ToTensor
 
 
@@ -22,3 +24,11 @@ def load_bloodmnist(
         transform=ToTensor(),
         target_transform=_class_index,
     )
+
+
+def subset_by_classes(dataset: BloodMNIST, classes: Sequence[int]) -> Subset:
+    class_set = set(classes)
+    indices = [
+        i for i, target in enumerate(dataset.labels) if int(target[0]) in class_set
+    ]
+    return Subset(dataset, indices)
