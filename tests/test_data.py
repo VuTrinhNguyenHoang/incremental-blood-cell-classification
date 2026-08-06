@@ -1,7 +1,11 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from incremental_blood_cell.data import load_bloodmnist, subset_by_classes
+from incremental_blood_cell.data import (
+    build_experience_datasets,
+    load_bloodmnist,
+    subset_by_classes,
+)
 from incremental_blood_cell.scenario import build_class_splits
 
 
@@ -43,3 +47,44 @@ def test_experience_has_no_future_classes() -> None:
 
     assert len(experience) == 8
     assert labels == {0, 1, 2, 3}
+
+
+def test_remaps_labels_for_arbitrary_class_order() -> None:
+    dataset = DummyDataset()
+    class_order = (4, 6, 1, 7, 0, 3, 2, 5)
+    class_splits = build_class_splits(
+        class_order=class_order,
+        increments=(4, 2, 2),
+    )
+
+    experiences = build_experience_datasets(
+        dataset=dataset,
+        class_splits=class_splits,
+    )
+
+    observed_mapping = {}
+
+    for experience in experiences:
+        for index in range(len(experience)):
+            image_index, remapped_label = experience[index]
+            original_label = int(dataset.labels[image_index][0])
+            observed_mapping[original_label] = remapped_label
+
+    assert observed_mapping == {
+        4: 0,
+        6: 1,
+        1: 2,
+        7: 3,
+        0: 4,
+        3: 5,
+        2: 6,
+        5: 7,
+    }
+
+    assert [
+        {experience[i][1] for i in range(len(experience))} for experience in experiences
+    ] == [
+        {0, 1, 2, 3},
+        {4, 5},
+        {6, 7},
+    ]
