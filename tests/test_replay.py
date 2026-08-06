@@ -5,7 +5,12 @@ import torch
 from torch import nn
 from torch.utils.data import TensorDataset
 
-from incremental_blood_cell.replay import ReplayBuffer, run_random_replay
+from incremental_blood_cell.model import expand_classifier
+from incremental_blood_cell.replay import (
+    ReplayBuffer,
+    SelectionReplayBuffer,
+    run_random_replay,
+)
 
 
 class TinyClassifier(nn.Module):
@@ -93,3 +98,33 @@ def test_runs_random_replay_with_old_samples() -> None:
     assert len(accuracy_matrix[0]) == 1
     assert len(accuracy_matrix[1]) == 2
     assert model.fc.out_features == 3
+
+
+def test_selection_replay_buffer_rebalances_memory() -> None:
+    model = TinyClassifier()
+    buffer = SelectionReplayBuffer(
+        capacity=6,
+        strategy="hybrid",
+    )
+
+    buffer.update(
+        model=model,
+        dataset=make_dataset((0, 1)),
+        seen_classes=(0, 1),
+        batch_size=32,
+    )
+
+    assert len(buffer) == 6
+    assert buffer.class_counts() == {0: 3, 1: 3}
+
+    expand_classifier(model, num_classes=3)
+
+    buffer.update(
+        model=model,
+        dataset=make_dataset((2,)),
+        seen_classes=(0, 1, 2),
+        batch_size=32,
+    )
+
+    assert len(buffer) == 6
+    assert buffer.class_counts() == {0: 2, 1: 2, 2: 2}
