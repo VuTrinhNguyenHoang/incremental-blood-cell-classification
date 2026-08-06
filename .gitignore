@@ -8,3 +8,9 @@ __pycache__/
 
 # Dataset
 data/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Experiments
+outputs/
