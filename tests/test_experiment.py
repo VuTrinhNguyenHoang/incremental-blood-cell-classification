@@ -2,9 +2,10 @@ from unittest.mock import patch
 
 import pytest
 import torch
+from torch import nn
 
 from incremental_blood_cell.config import ExperimentConfig
-from incremental_blood_cell.experiment import run_experiment
+from incremental_blood_cell.experiment import ExperimentResult, run_experiment
 
 
 class DummyDataset:
@@ -66,7 +67,9 @@ def test_dispatches_configured_method(
     arguments = mocked_runner.call_args.kwargs
     train_datasets = arguments["train_datasets"]
 
-    assert result == expected_result
+    assert result.config == config
+    assert result.model is model
+    assert result.accuracy_matrix == expected_result
     mocked_build_model.assert_called_once_with(num_classes=4)
 
     assert arguments["class_splits"] == (
@@ -86,3 +89,28 @@ def test_dispatches_configured_method(
 
     if method in {"prototype", "boundary", "hybrid"}:
         assert arguments["selection_strategy"] == method
+
+
+def test_summarizes_experiment_result() -> None:
+    config = ExperimentConfig(method="finetuning")
+
+    result = ExperimentResult(
+        config=config,
+        model=nn.Identity(),
+        accuracy_matrix=(
+            (0.9,),
+            (0.7, 0.8),
+        ),
+    )
+
+    assert result.final_average_accuracy == pytest.approx(0.75)
+    assert result.average_forgetting == pytest.approx(0.2)
+    assert result.backward_transfer == pytest.approx(-0.2)
+
+    summary = result.to_dict()
+
+    assert summary["config"]["method"] == "finetuning"
+    assert summary["accuracy_matrix"] == [
+        [0.9],
+        [0.7, 0.8],
+    ]

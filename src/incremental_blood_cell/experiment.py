@@ -1,4 +1,7 @@
+from dataclasses import asdict, dataclass, field
+
 import torch
+from torch import nn
 from torch.utils.data import Dataset
 
 from incremental_blood_cell.config import ExperimentConfig
@@ -6,11 +9,44 @@ from incremental_blood_cell.data import build_experience_datasets
 from incremental_blood_cell.finetuning import run_finetuning
 from incremental_blood_cell.joint import run_joint_training
 from incremental_blood_cell.lwf import run_lwf
+from incremental_blood_cell.metrics import (
+    average_forgetting,
+    backward_transfer,
+    final_average_accuracy,
+)
 from incremental_blood_cell.model import build_resnet18
 from incremental_blood_cell.replay import run_random_replay
 from incremental_blood_cell.replay_kd import run_replay_kd
 from incremental_blood_cell.selection_replay import run_selection_replay_kd
 from incremental_blood_cell.training import set_seed
+
+
+@dataclass
+class ExperimentResult:
+    config: ExperimentConfig
+    accuracy_matrix: tuple[tuple[float, ...], ...]
+    model: nn.Module = field(repr=False)
+
+    @property
+    def final_average_accuracy(self) -> float:
+        return final_average_accuracy(self.accuracy_matrix)
+
+    @property
+    def average_forgetting(self) -> float:
+        return average_forgetting(self.accuracy_matrix)
+
+    @property
+    def backward_transfer(self) -> float:
+        return backward_transfer(self.accuracy_matrix)
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "config": asdict(self.config),
+            "accuracy_matrix": [list(row) for row in self.accuracy_matrix],
+            "final_average_accuracy": self.final_average_accuracy,
+            "average_forgetting": self.average_forgetting,
+            "backward_transfer": self.backward_transfer,
+        }
 
 
 def run_experiment(
@@ -19,7 +55,7 @@ def run_experiment(
     test_dataset: Dataset,
     device: torch.device,
     show_progress: bool = True,
-) -> tuple[tuple[float, ...], ...]:
+) -> ExperimentResult:
     set_seed(config.seed)
 
     class_splits = config.class_splits
@@ -50,27 +86,27 @@ def run_experiment(
     }
 
     if config.method == "joint":
-        return run_joint_training(**common_arguments)
+        accuracy_matrix = run_joint_training(**common_arguments)
 
-    if config.method == "finetuning":
-        return run_finetuning(**common_arguments)
+    elif config.method == "finetuning":
+        accuracy_matrix = run_finetuning(**common_arguments)
 
-    if config.method == "lwf":
-        return run_lwf(
+    elif config.method == "lwf":
+        accuracy_matrix = run_lwf(
             **common_arguments,
             distillation_weight=config.distillation_weight,
             temperature=config.temperature,
         )
 
-    if config.method == "random_replay":
-        return run_random_replay(
+    elif config.method == "random_replay":
+        accuracy_matrix = run_random_replay(
             **common_arguments,
             memory_size=config.memory_size,
             seed=config.seed,
         )
 
-    if config.method == "replay_kd":
-        return run_replay_kd(
+    elif config.method == "replay_kd":
+        accuracy_matrix = run_replay_kd(
             **common_arguments,
             memory_size=config.memory_size,
             distillation_weight=config.distillation_weight,
@@ -78,8 +114,8 @@ def run_experiment(
             seed=config.seed,
         )
 
-    if config.method in {"prototype", "boundary", "hybrid"}:
-        return run_selection_replay_kd(
+    elif config.method in {"prototype", "boundary", "hybrid"}:
+        accuracy_matrix = run_selection_replay_kd(
             **common_arguments,
             memory_size=config.memory_size,
             selection_strategy=config.method,
@@ -87,4 +123,11 @@ def run_experiment(
             temperature=config.temperature,
         )
 
-    raise ValueError(f"unknown method: {config.method}")
+    else:
+        raise ValueError(f"unknown method: {config.method}")
+
+    return ExperimentResult(
+        config=config,
+        accuracy_matrix=accuracy_matrix,
+        model=model,
+    )
