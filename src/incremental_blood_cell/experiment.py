@@ -6,18 +6,18 @@ from torch.utils.data import Dataset
 
 from incremental_blood_cell.config import ExperimentConfig
 from incremental_blood_cell.data import build_experience_datasets
-from incremental_blood_cell.finetuning import run_finetuning
-from incremental_blood_cell.joint import run_joint_training
-from incremental_blood_cell.lwf import run_lwf
+from incremental_blood_cell.methods.finetuning import run_finetuning
+from incremental_blood_cell.methods.joint import run_joint_training
+from incremental_blood_cell.methods.lwf import run_lwf
+from incremental_blood_cell.methods.replay import run_random_replay
+from incremental_blood_cell.methods.replay_kd import run_replay_kd
+from incremental_blood_cell.methods.selection_replay import run_selection_replay_kd
 from incremental_blood_cell.metrics import (
     average_forgetting,
     backward_transfer,
     final_average_accuracy,
 )
 from incremental_blood_cell.model import build_resnet18
-from incremental_blood_cell.replay import run_random_replay
-from incremental_blood_cell.replay_kd import run_replay_kd
-from incremental_blood_cell.selection_replay import run_selection_replay_kd
 from incremental_blood_cell.training import set_seed
 
 

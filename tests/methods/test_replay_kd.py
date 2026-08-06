@@ -5,7 +5,7 @@ import torch
 from torch import nn
 from torch.utils.data import TensorDataset
 
-from incremental_blood_cell.replay_kd import run_replay_kd
+from incremental_blood_cell.methods.replay_kd import run_replay_kd
 
 
 class TinyClassifier(nn.Module):
@@ -56,7 +56,7 @@ def test_runs_replay_kd_with_memory_and_old_teacher() -> None:
         return (0.0,)
 
     with patch(
-        "incremental_blood_cell.replay_kd.train_lwf",
+        "incremental_blood_cell.methods.replay_kd.train_lwf",
         side_effect=inspect_replay_kd,
     ) as mocked_train_lwf:
         accuracy_matrix = run_replay_kd(

@@ -5,7 +5,7 @@ import torch
 from torch import nn
 from torch.utils.data import TensorDataset
 
-from incremental_blood_cell.joint import run_joint_training
+from incremental_blood_cell.methods.selection_replay import run_selection_replay_kd
 
 
 class TinyClassifier(nn.Module):
@@ -17,7 +17,7 @@ class TinyClassifier(nn.Module):
         return self.fc(inputs)
 
 
-def test_joint_training_uses_all_seen_data() -> None:
+def test_runs_selection_replay_with_memory_and_teacher() -> None:
     model = TinyClassifier()
 
     first_task = TensorDataset(
@@ -42,18 +42,22 @@ def test_joint_training_uses_all_seen_data() -> None:
         torch.tensor([2, 2]),
     )
 
-    training_counts = []
+    observed = {}
 
     def inspect_training(**kwargs) -> tuple[float, ...]:
         labels = [int(label) for _, label in kwargs["loader"].dataset]
-        training_counts.append(Counter(labels))
+
+        observed["counts"] = Counter(labels)
+        observed["teacher_classes"] = kwargs["teacher"].fc.out_features
+        observed["student_classes"] = kwargs["student"].fc.out_features
+
         return (0.0,)
 
     with patch(
-        "incremental_blood_cell.joint.train",
+        "incremental_blood_cell.methods.selection_replay.train_lwf",
         side_effect=inspect_training,
-    ):
-        accuracy_matrix = run_joint_training(
+    ) as mocked_train_lwf:
+        accuracy_matrix = run_selection_replay_kd(
             model=model,
             class_splits=((0, 1), (2,)),
             train_datasets=(first_task, second_task),
@@ -62,13 +66,17 @@ def test_joint_training_uses_all_seen_data() -> None:
             epochs=1,
             batch_size=2,
             learning_rate=0.1,
+            memory_size=3,
+            selection_strategy="hybrid",
+            distillation_weight=1.0,
+            temperature=2.0,
             show_progress=False,
         )
 
-    assert training_counts == [
-        Counter({0: 2, 1: 2}),
-        Counter({0: 2, 1: 2, 2: 2}),
-    ]
+    assert mocked_train_lwf.call_count == 1
+    assert observed["counts"] == Counter({0: 2, 1: 1, 2: 2})
+    assert observed["teacher_classes"] == 2
+    assert observed["student_classes"] == 3
 
     assert len(accuracy_matrix) == 2
     assert len(accuracy_matrix[0]) == 1

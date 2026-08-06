@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from torch.utils.data import TensorDataset
 
-from incremental_blood_cell.selection import (
+from incremental_blood_cell.methods.selection import (
     collect_features_and_logits,
     select_exemplars,
 )

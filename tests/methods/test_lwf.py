@@ -6,7 +6,7 @@ from torch import nn
 from torch.optim import SGD
 from torch.utils.data import DataLoader, TensorDataset
 
-from incremental_blood_cell.lwf import distillation_loss, run_lwf, train_lwf
+from incremental_blood_cell.methods.lwf import distillation_loss, run_lwf, train_lwf
 
 
 class TinyClassifier(nn.Module):
@@ -163,7 +163,7 @@ def test_runs_sequential_lwf_with_old_teacher() -> None:
     )
 
     with patch(
-        "incremental_blood_cell.lwf.train_lwf",
+        "incremental_blood_cell.methods.lwf.train_lwf",
         wraps=train_lwf,
     ) as mocked_train_lwf:
         accuracy_matrix = run_lwf(
