@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from torch.utils.data import TensorDataset
 
-from incremental_blood_cell.finetuning import run_finetuning
+from incremental_blood_cell.methods.finetuning import run_finetuning
 
 
 class TinyClassifier(nn.Module):

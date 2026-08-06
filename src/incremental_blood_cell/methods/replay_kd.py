@@ -8,18 +8,17 @@ from torchvision.models.resnet import ResNet
 from tqdm.auto import tqdm
 
 from incremental_blood_cell.evaluator import evaluate_tasks
-from incremental_blood_cell.lwf import train_lwf
+from incremental_blood_cell.methods.lwf import train_lwf
+from incremental_blood_cell.methods.replay import ReplayBuffer
 from incremental_blood_cell.metrics import (
     average_forgetting,
     final_average_accuracy,
 )
 from incremental_blood_cell.model import expand_classifier
-from incremental_blood_cell.replay import SelectionReplayBuffer
-from incremental_blood_cell.selection import SelectionStrategy
 from incremental_blood_cell.training import train
 
 
-def run_selection_replay_kd(
+def run_replay_kd(
     model: ResNet,
     class_splits: Sequence[Sequence[int]],
     train_datasets: Sequence[Dataset],
@@ -29,18 +28,15 @@ def run_selection_replay_kd(
     batch_size: int,
     learning_rate: float,
     memory_size: int,
-    selection_strategy: SelectionStrategy,
     distillation_weight: float,
     temperature: float,
+    seed: int = 0,
     weight_decay: float = 1e-4,
     show_progress: bool = True,
 ) -> tuple[tuple[float, ...], ...]:
     model.to(device)
 
-    buffer = SelectionReplayBuffer(
-        capacity=memory_size,
-        strategy=selection_strategy,
-    )
+    buffer = ReplayBuffer(capacity=memory_size, seed=seed)
     accuracy_matrix = []
 
     for experience_index, train_dataset in enumerate(train_datasets):
@@ -59,8 +55,7 @@ def run_selection_replay_kd(
         if show_progress:
             tqdm.write(
                 f"Experience {experience_index + 1}/{len(train_datasets)} "
-                f"| classes={tuple(classes)} "
-                f"| selection={selection_strategy}"
+                f"| classes={tuple(classes)}"
             )
 
         training_dataset = train_dataset
@@ -99,19 +94,17 @@ def run_selection_replay_kd(
                 show_progress=show_progress,
             )
 
+        buffer.update(
+            dataset=train_dataset,
+            seen_classes=seen_classes,
+        )
+
         row = evaluate_tasks(
             model=model,
             datasets=test_datasets[: experience_index + 1],
             batch_size=batch_size,
         )
         accuracy_matrix.append(row)
-
-        buffer.update(
-            model=model,
-            dataset=train_dataset,
-            seen_classes=seen_classes,
-            batch_size=batch_size,
-        )
 
         if show_progress:
             message = (

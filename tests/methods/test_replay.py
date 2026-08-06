@@ -5,12 +5,12 @@ import torch
 from torch import nn
 from torch.utils.data import TensorDataset
 
-from incremental_blood_cell.model import expand_classifier
-from incremental_blood_cell.replay import (
+from incremental_blood_cell.methods.replay import (
     ReplayBuffer,
     SelectionReplayBuffer,
     run_random_replay,
 )
+from incremental_blood_cell.model import expand_classifier
 
 
 class TinyClassifier(nn.Module):
@@ -73,7 +73,7 @@ def test_runs_random_replay_with_old_samples() -> None:
         return (0.0,)
 
     with patch(
-        "incremental_blood_cell.replay.train",
+        "incremental_blood_cell.methods.replay.train",
         side_effect=record_training_data,
     ):
         accuracy_matrix = run_random_replay(

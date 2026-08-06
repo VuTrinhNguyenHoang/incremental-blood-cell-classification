@@ -10,16 +10,16 @@ from torchvision.models.resnet import ResNet
 from tqdm.auto import tqdm
 
 from incremental_blood_cell.evaluator import evaluate_tasks
+from incremental_blood_cell.methods.selection import (
+    SelectionStrategy,
+    collect_features_and_logits,
+    select_exemplars,
+)
 from incremental_blood_cell.metrics import (
     average_forgetting,
     final_average_accuracy,
 )
 from incremental_blood_cell.model import expand_classifier
-from incremental_blood_cell.selection import (
-    SelectionStrategy,
-    collect_features_and_logits,
-    select_exemplars,
-)
 from incremental_blood_cell.training import train
 
 
