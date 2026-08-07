@@ -23,6 +23,13 @@ def test_seed_reproduces_random_values() -> None:
     assert torch.equal(first_tensor, second_tensor)
 
 
+def test_seed_configures_deterministic_cudnn() -> None:
+    set_seed(17)
+
+    assert torch.backends.cudnn.deterministic
+    assert not torch.backends.cudnn.benchmark
+
+
 def test_training_updates() -> None:
     set_seed(17)
 
