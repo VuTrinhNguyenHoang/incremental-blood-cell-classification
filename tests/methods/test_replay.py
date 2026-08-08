@@ -78,7 +78,7 @@ def test_runs_random_replay_with_old_samples() -> None:
     ):
         accuracy_matrix = run_random_replay(
             model=model,
-            class_splits=((0, 1), (2,)),
+            class_splits=((2, 0), (1,)),
             train_datasets=(first_task, second_task),
             test_datasets=(first_task, second_task),
             device=torch.device("cpu"),

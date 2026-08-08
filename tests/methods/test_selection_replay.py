@@ -59,7 +59,7 @@ def test_runs_selection_replay_with_memory_and_teacher() -> None:
     ) as mocked_train_lwf:
         accuracy_matrix = run_selection_replay_kd(
             model=model,
-            class_splits=((0, 1), (2,)),
+            class_splits=((2, 0), (1,)),
             train_datasets=(first_task, second_task),
             test_datasets=(first_task, second_task),
             device=torch.device("cpu"),

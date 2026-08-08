@@ -45,11 +45,10 @@ def run_selection_replay_kd(
 
     for experience_index, train_dataset in enumerate(train_datasets):
         classes = class_splits[experience_index]
-        seen_classes = tuple(
-            class_id
-            for class_split in class_splits[: experience_index + 1]
-            for class_id in class_split
+        seen_class_count = sum(
+            len(class_split) for class_split in class_splits[: experience_index + 1]
         )
+        seen_classes = tuple(range(seen_class_count))
         teacher = None
 
         if experience_index > 0:
